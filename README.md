@@ -101,17 +101,25 @@ AuditCortex runs **100% locally on localhost**:
 - Python 3.10+ (Python 3.14 supported)
 - Node.js & npm
 
-### 2. Start the FastAPI Agent Execution Engine
-```bash
-python -m uvicorn agent_engine.main:app --host 127.0.0.1 --port 8080
-```
-*Health endpoint: `http://127.0.0.1:8080/health`*
+### 2. One-Click Launcher (Windows)
+Double-click [`start.bat`](file:///d:/xampp/htdocs/AuditCortex/start.bat) (or run `start.bat` / `run.bat` in terminal). This automatically:
+1. Verifies PHP and Python runtimes.
+2. Initializes and seeds the SQLite database with real-world sample PR fixtures.
+3. Launches the **FastAPI Agent Execution Engine** on `http://127.0.0.1:8080`.
+4. Launches the **Laravel Orchestrator & Review Terminal** on `http://127.0.0.1:8000`.
+5. Opens the Review Terminal in your default web browser!
 
-### 3. Start the Laravel Webhook Orchestrator & Review Terminal
+To gracefully stop both services, double-click [`stop.bat`](file:///d:/xampp/htdocs/AuditCortex/stop.bat).
+
+### 3. Manual Startup Alternative
+If running manually across separate terminal windows:
 ```bash
+# Terminal 1: Python FastAPI Agent Engine
+python -m uvicorn agent_engine.main:app --host 127.0.0.1 --port 8080
+
+# Terminal 2: Laravel Webhook Orchestrator & Review Terminal
 php artisan serve --port 8000
 ```
-*Access the Review Terminal at: `http://127.0.0.1:8000/`*
 
 ### 4. Seed Demo Attack Vectors (1-Click)
 In the dashboard UI, click **"⚡ Seed Real-World Attack Scenarios"** or run:
