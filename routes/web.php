@@ -7,3 +7,4 @@ Route::get('/', [ReviewTerminalController::class, 'index'])->name('terminal.inde
 Route::get('/terminal/{id}', [ReviewTerminalController::class, 'show'])->name('terminal.show');
 Route::get('/reviews/{id}', [ReviewTerminalController::class, 'show']);
 Route::get('/reviews/{id}/download-patch', [ReviewTerminalController::class, 'downloadPatch'])->name('reviews.download-patch');
+Route::get('/reviews/{id}/download-sarif', [ReviewTerminalController::class, 'downloadSarif'])->name('reviews.download-sarif');

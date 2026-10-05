@@ -15,6 +15,7 @@ class ReviewSession extends Model
 
     protected $casts = [
         'llm_runner_info' => 'array',
+        'metadata' => 'array',
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
     ];
@@ -42,5 +43,15 @@ class ReviewSession extends Model
     public function inlineComments(): HasMany
     {
         return $this->hasMany(InlineComment::class);
+    }
+
+    public function checkRun()
+    {
+        return $this->hasOne(CheckRun::class);
+    }
+
+    public function remediationBranch()
+    {
+        return $this->hasOne(RemediationBranch::class);
     }
 }

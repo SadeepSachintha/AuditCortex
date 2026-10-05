@@ -559,6 +559,120 @@ body {
   background: rgba(255, 255, 255, 0.02);
 }
 
+/* Enterprise Enhancements Styles */
+.gate-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  backdrop-filter: blur(12px);
+}
+
+.gate-card-blocked {
+  background: rgba(244, 63, 94, 0.08);
+  border: 1px solid rgba(244, 63, 94, 0.35);
+  box-shadow: 0 0 20px rgba(244, 63, 94, 0.1);
+}
+
+.gate-card-passed {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+}
+
+.discussion-thread {
+  background: rgba(7, 10, 19, 0.85);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.chat-bubble {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  max-width: 85%;
+}
+
+.chat-bubble-critic {
+  background: rgba(168, 85, 247, 0.1);
+  border-left: 3px solid var(--purple-agent);
+  align-self: flex-start;
+  color: #f1f5f9;
+}
+
+.chat-bubble-dev {
+  background: rgba(0, 240, 255, 0.08);
+  border-right: 3px solid var(--cyan-glow);
+  align-self: flex-end;
+  color: #e2e8f0;
+}
+
+.debate-card {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  padding: 1rem;
+  margin-top: 0.75rem;
+}
+
+.debate-turn {
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+}
+
+.turn-red {
+  background: rgba(244, 63, 94, 0.08);
+  border-left: 3px solid var(--crimson-crit);
+}
+
+.turn-blue {
+  background: rgba(16, 185, 129, 0.08);
+  border-left: 3px solid var(--emerald-safe);
+}
+
+.tab-nav {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tab-btn.active {
+  color: var(--cyan-glow);
+  background: var(--cyan-subtle);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+}
+
 /* Responsive adjustments */
 @media (max-width: 900px) {
   .agent-graph-bar {
@@ -572,3 +686,4 @@ body {
     border-bottom: 1px solid var(--border-subtle);
   }
 }
+

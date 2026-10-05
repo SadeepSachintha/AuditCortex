@@ -21,3 +21,7 @@ Route::post('/inline-comments/{id}/publish', [ReviewTerminalController::class, '
 Route::post('/review-sessions/{id}/publish-all', [ReviewTerminalController::class, 'publishAllComments']);
 Route::post('/patch-diffs/{id}/apply', [ReviewTerminalController::class, 'applyPatch']);
 Route::get('/review-sessions/{id}/download-patch', [ReviewTerminalController::class, 'downloadPatch']);
+Route::get('/review-sessions/{id}/download-sarif', [ReviewTerminalController::class, 'downloadSarif']);
+Route::post('/pull-requests/{id}/check-runs/sync', [ReviewTerminalController::class, 'syncCheckRun']);
+Route::post('/pull-requests/{id}/create-autofix-branch', [ReviewTerminalController::class, 'createAutoFixBranch']);
+Route::post('/findings/{id}/discuss', [ReviewTerminalController::class, 'postInlineDiscussion']);

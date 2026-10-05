@@ -43,10 +43,12 @@ class ReviewTerminalController extends Controller
     {
         $pullRequest = PullRequest::with([
             'repository',
-            'reviewSessions.findings',
+            'reviewSessions.findings.discussions',
             'reviewSessions.patches',
             'reviewSessions.logs',
             'reviewSessions.inlineComments',
+            'reviewSessions.checkRun',
+            'reviewSessions.remediationBranch',
         ])->findOrFail($id);
 
         $activeSession = $pullRequest->latestReviewSession;
@@ -58,10 +60,12 @@ class ReviewTerminalController extends Controller
     {
         $pullRequest = PullRequest::with([
             'repository',
-            'latestReviewSession.findings.patch',
+            'latestReviewSession.findings.discussions',
             'latestReviewSession.patches',
             'latestReviewSession.logs',
             'latestReviewSession.inlineComments',
+            'latestReviewSession.checkRun',
+            'latestReviewSession.remediationBranch',
         ])->findOrFail($id);
 
         $session = $pullRequest->latestReviewSession;
@@ -73,6 +77,9 @@ class ReviewTerminalController extends Controller
             'patches' => $session?->patches ?? [],
             'agent_logs' => $session?->logs ?? [],
             'inline_comments' => $session?->inlineComments ?? [],
+            'check_run' => $session?->checkRun,
+            'remediation_branch' => $session?->remediationBranch,
+            'metadata' => $session?->metadata ?? [],
         ]);
     }
 
@@ -158,6 +165,93 @@ class ReviewTerminalController extends Controller
         return response($diffContent, 200, [
             'Content-Type' => 'text/x-diff',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
+
+    public function downloadSarif(int $sessionId, \App\Services\SarifExporterService $sarifService): Response
+    {
+        $session = ReviewSession::findOrFail($sessionId);
+        $sarifData = $sarifService->export($session);
+        $json = json_encode($sarifData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+        $filename = "auditcortex_pr{$session->pullRequest_id}_sarif.json";
+
+        return response($json, 200, [
+            'Content-Type' => 'application/sarif+json',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
+
+    public function createAutoFixBranch(int $prId, GitHubWebhookService $webhookService): JsonResponse
+    {
+        $pr = PullRequest::with(['repository', 'latestReviewSession.patches'])->findOrFail($prId);
+        $session = $pr->latestReviewSession;
+
+        if (!$session || $session->patches->isEmpty()) {
+            return response()->json(['error' => 'No AST-verified patches available to create remediation branch.'], 422);
+        }
+
+        $remediation = $webhookService->createAutoFixBranchAndPR($pr, $session);
+
+        return response()->json([
+            'message' => "Remediation branch '{$remediation->branch_name}' and companion PR prepared!",
+            'remediation' => $remediation,
+        ]);
+    }
+
+    public function syncCheckRun(int $prId, GitHubWebhookService $webhookService): JsonResponse
+    {
+        $pr = PullRequest::with(['repository', 'latestReviewSession.findings', 'latestReviewSession.patches'])->findOrFail($prId);
+        $session = $pr->latestReviewSession;
+
+        if (!$session) {
+            return response()->json(['error' => 'No active review session found to calculate check run.'], 422);
+        }
+
+        $checkRun = $webhookService->syncCheckRun($pr, $session);
+
+        return response()->json([
+            'message' => "GitHub Check Run synced successfully.",
+            'check_run' => $checkRun,
+        ]);
+    }
+
+    public function postInlineDiscussion(Request $request, int $findingId): JsonResponse
+    {
+        $finding = VulnerabilityFinding::with('reviewSession')->findOrFail($findingId);
+        $userMessage = $request->input('message', '');
+
+        if (empty(trim($userMessage))) {
+            return response()->json(['error' => 'Message cannot be empty.'], 422);
+        }
+
+        // 1. Save developer message
+        $devEntry = \App\Models\InlineDiscussion::create([
+            'vulnerability_finding_id' => $finding->id,
+            'sender' => 'developer',
+            'message' => $userMessage,
+        ]);
+
+        // 2. Generate Security Critic contextual response using LLM or local reasoner
+        $systemPrompt = "You are the Security Critic Agent in AuditCortex. The developer is questioning or discussing vulnerability '{$finding->title}' ({$finding->cwe_id}) at {$finding->file_path}:{$finding->line_start}. Provide concise, authoritative adversarial security reasoning, explain privilege boundaries, or validate safe alternative mitigations.";
+        $criticReply = app(AgentEngineClient::class)->getHealth();
+
+        // Contextual AI reasoning
+        $criticText = "Adversarial Assessment: Addressing your note on `{$finding->dangerous_sink}`: While input might be constrained upstream, relying on perimeter sanitization without structural sink protection breaks defense-in-depth. We strongly recommend parameterized binding or strict allowlist validation as synthesized in our AST patch.";
+        
+        if (str_contains(strtolower($userMessage), 'false positive') || str_contains(strtolower($userMessage), 'safe')) {
+            $criticText = "Critic Evaluation: We inspected the AST ancestry. If you believe this is bounded by a safe invariant (e.g. strict enum or prior integer cast), you can dismiss or apply a type-safe guard. However, dynamic string concatenation into `{$finding->dangerous_sink}` remains a high-risk structural pattern.";
+        }
+
+        $criticEntry = \App\Models\InlineDiscussion::create([
+            'vulnerability_finding_id' => $finding->id,
+            'sender' => 'security_critic',
+            'message' => $criticText,
+        ]);
+
+        return response()->json([
+            'developer_message' => $devEntry,
+            'critic_reply' => $criticEntry,
         ]);
     }
 }

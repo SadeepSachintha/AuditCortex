@@ -28,4 +28,19 @@ class PullRequest extends Model
     {
         return $this->hasOne(ReviewSession::class)->latestOfMany();
     }
+
+    public function checkRuns(): HasMany
+    {
+        return $this->hasMany(CheckRun::class);
+    }
+
+    public function latestCheckRun(): HasOne
+    {
+        return $this->hasOne(CheckRun::class)->latestOfMany();
+    }
+
+    public function remediationBranches(): HasMany
+    {
+        return $this->hasMany(RemediationBranch::class);
+    }
 }

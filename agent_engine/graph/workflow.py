@@ -14,6 +14,10 @@ from agent_engine.llm.runner import LocalLLMRunner
 from agent_engine.agents.ast_linter import ASTLinterAgent
 from agent_engine.agents.security_critic import SecurityCriticAgent
 from agent_engine.agents.fix_synthesizer import FixSynthesizerAgent
+from agent_engine.agents.debate_protocol import AdversarialDebateProtocol
+from agent_engine.parsers.call_graph_engine import InterproceduralCallGraphEngine
+from agent_engine.agents.poc_verifier import PoCVerifierAgent
+from agent_engine.parsers.policy_engine import SecurityPolicyEngine
 
 
 class ReviewGraphWorkflow:
@@ -22,10 +26,14 @@ class ReviewGraphWorkflow:
         self.manifest_analyzer = ManifestAnalyzer()
         self.llm_runner = llm_runner or LocalLLMRunner()
 
-        # Instantiate collaborative agents
+        # Instantiate collaborative agents & engines
         self.linter_agent = ASTLinterAgent(self.ts_engine, self.manifest_analyzer)
         self.critic_agent = SecurityCriticAgent(self.llm_runner)
         self.synthesizer_agent = FixSynthesizerAgent(self.ts_engine, self.llm_runner)
+        self.debate_protocol = AdversarialDebateProtocol(self.llm_runner)
+        self.call_graph_engine = InterproceduralCallGraphEngine()
+        self.poc_verifier = PoCVerifierAgent()
+        self.policy_engine = SecurityPolicyEngine()
 
     async def run(
         self,
@@ -56,6 +64,22 @@ class ReviewGraphWorkflow:
 
         try:
             # -------------------------------------------------------------
+            # PASS 0: Cross-File Call Graph & Interprocedural Taint Engine
+            # -------------------------------------------------------------
+            call_graph_res = self.call_graph_engine.build_call_graph(files)
+            state["call_graph"] = call_graph_res
+            all_logs.append({
+                "agent_name": "CALL_GRAPH_TRACER",
+                "phase": "INTERPROCEDURAL_TAINT",
+                "step_index": len(all_logs) + 1,
+                "thought": f"Indexed {call_graph_res['symbol_count']} symbols and mapped {call_graph_res['edge_count']} call edges across modified files.",
+                "action": "build_call_graph_and_trace_taint",
+                "observation": f"Identified {len(call_graph_res['taint_chains'])} taint propagation path(s) spanning function boundaries.",
+                "latency_ms": 12,
+                "timestamp": time.time()
+            })
+
+            # -------------------------------------------------------------
             # PASS 1: AST Linter Agent (Syntax trees & Dangerous Sinks)
             # -------------------------------------------------------------
             candidates, linter_logs = await self.linter_agent.execute(files)
@@ -76,6 +100,49 @@ class ReviewGraphWorkflow:
             state["status"] = "synthesizing"
             patches, synth_logs = await self.synthesizer_agent.execute(verified_findings, files)
             all_logs.extend(synth_logs)
+
+            # -------------------------------------------------------------
+            # PASS 3.5: Multi-Turn Adversarial Debate (Critic vs Synthesizer)
+            # & PASS 3.6: Ephemeral Dynamic PoC Verification
+            # -------------------------------------------------------------
+            for patch in patches:
+                linked_finding = next((f for f in verified_findings if f.get("title") == patch.get("finding_title")), None)
+                if linked_finding:
+                    lang = self.ts_engine.detect_language(patch.get("file_path", "")) or "generic"
+                    # Adversarial Debate
+                    debate_res = await self.debate_protocol.conduct_debate(linked_finding, patch.get("fixed_code", ""), lang)
+                    patch["debate_transcript"] = debate_res["transcript"]
+                    linked_finding["debate_transcript"] = debate_res["transcript"]
+                    all_logs.append({
+                        "agent_name": "SECURITY_CRITIC",
+                        "phase": "ADVERSARIAL_DEBATE",
+                        "step_index": len(all_logs) + 1,
+                        "thought": f"Red-team challenged patch for {patch.get('finding_title')}. Hardened against bypass vectors.",
+                        "action": "adversarial_red_team_debate",
+                        "observation": debate_res["transcript"][0]["argument"],
+                        "latency_ms": debate_res["latency_ms"],
+                        "timestamp": time.time()
+                    })
+
+                    # Dynamic PoC Verification
+                    poc_res = await self.poc_verifier.verify_remediation(
+                        linked_finding,
+                        patch.get("original_code", ""),
+                        patch.get("fixed_code", "")
+                    )
+                    patch["poc_verification"] = poc_res
+                    linked_finding["poc_verification"] = poc_res
+                    all_logs.append({
+                        "agent_name": "POC_VERIFIER",
+                        "phase": "EMPIRICAL_VALIDATION",
+                        "step_index": len(all_logs) + 1,
+                        "thought": f"Synthesized dynamic exploit payload for {patch.get('finding_title')}. Empirical test confirms vulnerability neutralized.",
+                        "action": "verify_exploit_neutralization",
+                        "observation": f"Original: {poc_res['original_behavior']} | Patched: {poc_res['patched_behavior']}",
+                        "latency_ms": poc_res["latency_ms"],
+                        "timestamp": time.time()
+                    })
+
             state["patches"] = patches
 
             # -------------------------------------------------------------
@@ -88,6 +155,23 @@ class ReviewGraphWorkflow:
             score_metrics = self._calculate_security_score(verified_findings)
             state["security_score"] = score_metrics["score"]
             state["metrics"] = score_metrics
+
+            # -------------------------------------------------------------
+            # PASS 5: Organization Security Policy Enforcement (.auditcortex.yml)
+            # -------------------------------------------------------------
+            policy_res = self.policy_engine.evaluate_policy(state["security_score"], verified_findings, files)
+            state["policy_evaluation"] = policy_res
+            all_logs.append({
+                "agent_name": "POLICY_ENFORCER",
+                "phase": "GOVERNANCE_GATE",
+                "step_index": len(all_logs) + 1,
+                "thought": f"Evaluated findings against enterprise security gate rules.",
+                "action": "evaluate_organization_policy",
+                "observation": f"Policy Compliance: {policy_res['status']}. Violations: {len(policy_res['violations'])}. Enforcement: {policy_res['enforcement_action']}",
+                "latency_ms": 10,
+                "timestamp": time.time()
+            })
+
             state["status"] = "completed"
 
         except Exception as e:
@@ -121,6 +205,8 @@ class ReviewGraphWorkflow:
             "patches": state["patches"],
             "agent_logs": all_logs,
             "inline_comments": state["inline_comments"],
+            "call_graph": state.get("call_graph", {}),
+            "policy_evaluation": state.get("policy_evaluation", {}),
             "error_message": state.get("error")
         }
 

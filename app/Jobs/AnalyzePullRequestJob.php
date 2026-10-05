@@ -59,6 +59,10 @@ class AnalyzePullRequestJob implements ShouldQueue
                 'total_findings' => $result['total_findings'] ?? 0,
                 'execution_time_ms' => $result['execution_time_ms'] ?? 0,
                 'llm_runner_info' => $result['llm_runner_info'] ?? null,
+                'metadata' => [
+                    'call_graph' => $result['call_graph'] ?? [],
+                    'policy_evaluation' => $result['policy_evaluation'] ?? [],
+                ],
                 'error_message' => $result['error_message'] ?? null,
                 'completed_at' => now(),
             ]);
@@ -136,6 +140,9 @@ class AnalyzePullRequestJob implements ShouldQueue
                     ]);
                 }
             }
+
+            // Sync GitHub Check Run & Merge Protection Gate
+            app(\App\Services\GitHubWebhookService::class)->syncCheckRun($session->pullRequest, $session);
 
         } catch (\Exception $e) {
             Log::error("Analysis failed for session {$session->id}: " . $e->getMessage());
