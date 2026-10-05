@@ -21,7 +21,11 @@ class ReviewTerminalController extends Controller
     public function index()
     {
         $repositories = Repository::withCount('pullRequests')->get();
-        $recentPullRequests = PullRequest::with(['repository', 'latestReviewSession'])
+        $recentPullRequests = PullRequest::with([
+            'repository',
+            'latestReviewSession.checkRun',
+            'latestReviewSession.remediationBranch',
+        ])
             ->latest()
             ->take(20)
             ->get();
@@ -33,6 +37,8 @@ class ReviewTerminalController extends Controller
             'critical_vulnerabilities' => VulnerabilityFinding::where('severity', 'CRITICAL')->count(),
             'high_vulnerabilities' => VulnerabilityFinding::where('severity', 'HIGH')->count(),
             'patches_generated' => PatchDiff::count(),
+            'check_runs_active' => \App\Models\CheckRun::count(),
+            'remediations_ready' => \App\Models\RemediationBranch::count(),
             'avg_security_score' => round(ReviewSession::where('status', 'completed')->avg('security_score') ?? 100),
         ];
 

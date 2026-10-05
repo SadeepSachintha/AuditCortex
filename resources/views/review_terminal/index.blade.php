@@ -70,8 +70,17 @@
 
         <div class="glass-panel metric-card">
             <div class="metric-header">
-                <span class="metric-title">Fleet Security Score</span>
+                <span class="metric-title">Merge Gates Enforced</span>
                 <span style="font-size: 1.25rem;">🛡️</span>
+            </div>
+            <div class="metric-value" style="color: var(--purple-agent);">{{ $stats['check_runs_active'] ?? 0 }}</div>
+            <div class="metric-sub">GitHub Checks API protection runs</div>
+        </div>
+
+        <div class="glass-panel metric-card">
+            <div class="metric-header">
+                <span class="metric-title">Fleet Security Score</span>
+                <span style="font-size: 1.25rem;">📊</span>
             </div>
             <div class="metric-value" style="color: {{ $stats['avg_security_score'] > 80 ? 'var(--emerald-safe)' : ($stats['avg_security_score'] > 50 ? 'var(--amber-warn)' : 'var(--crimson-crit)') }};">
                 {{ $stats['avg_security_score'] }}<span style="font-size: 1rem; color: var(--text-dim);">/100</span>
@@ -170,9 +179,9 @@
                             <th>Author</th>
                             <th>Branch</th>
                             <th>Security Score</th>
+                            <th>Merge Gate</th>
                             <th>Vulnerabilities</th>
                             <th>Status</th>
-                            <th>Review Session</th>
                             <th style="text-align: right;">Action</th>
                         </tr>
                     </thead>
@@ -181,14 +190,23 @@
                             @php
                                 $session = $pr->latestReviewSession;
                                 $score = $session?->security_score ?? 100;
+                                $checkRun = $session?->checkRun;
+                                $remediation = $session?->remediationBranch;
                             @endphp
                             <tr>
                                 <td>
                                     <div style="font-weight: 600; color: white;">
                                         #{{ $pr->pr_number }} {{ $pr->title }}
                                     </div>
-                                    <div style="font-size: 0.75rem; color: var(--text-dim); font-family: var(--font-mono);">
-                                        {{ $pr->repository->repo_full_name }}
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.2rem; flex-wrap: wrap;">
+                                        <span style="font-size: 0.75rem; color: var(--text-dim); font-family: var(--font-mono);">
+                                            {{ $pr->repository->repo_full_name }}
+                                        </span>
+                                        @if($remediation)
+                                            <span class="badge-pill badge-emerald" style="font-size: 0.625rem; padding: 0.1rem 0.35rem;">
+                                                🌿 Auto-Fix Ready: {{ $remediation->branch_name }}
+                                            </span>
+                                        @endif
                                     </div>
                                 </td>
                                 <td>
@@ -211,6 +229,19 @@
                                         </span>
                                     @else
                                         <span class="badge-pill badge-secondary">Pending</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    @if($checkRun)
+                                        <span class="badge-pill {{ $checkRun->conclusion === 'success' ? 'badge-emerald' : 'badge-crimson' }}" style="font-size: 0.6875rem;">
+                                            {{ $checkRun->conclusion === 'success' ? '✅ Allowed' : '⛔ Blocked' }}
+                                        </span>
+                                    @elseif($session)
+                                        <span class="badge-pill {{ $score >= 80 && ($session->critical_count ?? 0) === 0 ? 'badge-emerald' : 'badge-crimson' }}" style="font-size: 0.6875rem;">
+                                            {{ $score >= 80 && ($session->critical_count ?? 0) === 0 ? '✅ Allowed' : '⛔ Blocked' }}
+                                        </span>
+                                    @else
+                                        <span style="color: var(--text-dim); font-size: 0.75rem;">-</span>
                                     @endif
                                 </td>
                                 <td>
@@ -246,11 +277,6 @@
                                     @else
                                         <span class="badge-pill badge-cyan">Ready</span>
                                     @endif
-                                </td>
-                                <td>
-                                    <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-dim);">
-                                        {{ $session ? substr($session->session_uuid, 0, 8) . '...' : '-' }}
-                                    </span>
                                 </td>
                                 <td style="text-align: right;">
                                     <a href="{{ route('terminal.show', $pr->id) }}" class="btn btn-primary" style="padding: 0.35rem 0.85rem; font-size: 0.8125rem;">
