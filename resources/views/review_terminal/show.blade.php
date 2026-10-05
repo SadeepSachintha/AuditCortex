@@ -1267,6 +1267,7 @@ module.exports = { forwardWebhook, fetchUserTransactions, archiveTenantData };
         });
 
         return {
+            pullRequest,
             prId,
             activeTab,
             viewMode,
