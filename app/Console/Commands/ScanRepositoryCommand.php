@@ -106,6 +106,48 @@ class ScanRepositoryCommand extends Command
         }
 
         if ($format === 'sarif') {
+            $rules = [];
+            $results = [];
+            $rulesSeen = [];
+
+            foreach ($findings as $f) {
+                $ruleId = $f['cwe_id'] ?? ($f['vulnerability_type'] ?? 'CWE-Unknown');
+                if (!isset($rulesSeen[$ruleId])) {
+                    $rulesSeen[$ruleId] = true;
+                    $rules[] = [
+                        'id' => $ruleId,
+                        'name' => $f['vulnerability_type'] ?? 'SecurityVulnerability',
+                        'shortDescription' => ['text' => $f['title'] ?? 'Security Finding'],
+                        'fullDescription' => ['text' => $f['description'] ?? 'AST Security Finding'],
+                        'defaultConfiguration' => [
+                            'level' => in_array($f['severity'] ?? 'MEDIUM', ['CRITICAL', 'HIGH']) ? 'error' : 'warning',
+                        ],
+                    ];
+                }
+
+                $results[] = [
+                    'ruleId' => $ruleId,
+                    'level' => in_array($f['severity'] ?? 'MEDIUM', ['CRITICAL', 'HIGH']) ? 'error' : 'warning',
+                    'message' => [
+                        'text' => ($f['title'] ?? 'Flaw') . ': ' . ($f['critic_reasoning'] ?? ($f['description'] ?? 'Tainted sink detected')),
+                    ],
+                    'locations' => [
+                        [
+                            'physicalLocation' => [
+                                'artifactLocation' => [
+                                    'uri' => $f['file_path'] ?? 'unknown',
+                                    'uriBaseId' => '%SRCROOT%',
+                                ],
+                                'region' => [
+                                    'startLine' => (int) ($f['line_start'] ?? 1),
+                                    'endLine' => (int) ($f['line_end'] ?? ($f['line_start'] ?? 1)),
+                                ],
+                            ],
+                        ],
+                    ],
+                ];
+            }
+
             $sarifData = [
                 '$schema' => 'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json',
                 'version' => '2.1.0',
@@ -115,17 +157,17 @@ class ScanRepositoryCommand extends Command
                             'driver' => [
                                 'name' => 'AuditCortex Autonomous Security Engine',
                                 'version' => '1.0.0',
-                                'rules' => []
-                            ]
+                                'rules' => $rules,
+                            ],
                         ],
-                        'results' => []
-                    ]
-                ]
+                        'results' => $results,
+                    ],
+                ],
             ];
             $json = json_encode($sarifData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
             if ($outputFile) {
                 file_put_contents($outputFile, $json);
-                $this->info("Saved OASIS SARIF 2.1.0 report to {$outputFile}");
+                $this->info("Saved OASIS SARIF 2.1.0 report to {$outputFile} (" . count($results) . " finding(s))");
             } else {
                 $this->line($json);
             }

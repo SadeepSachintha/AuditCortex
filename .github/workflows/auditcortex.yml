@@ -6,6 +6,11 @@ on:
   push:
     branches: [ main ]
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 jobs:
   security-audit:
     name: Multi-Pass AST Vulnerability & Taint Scan
@@ -26,11 +31,18 @@ jobs:
           php-version: '8.2'
           extensions: mbstring, pdo, pdo_sqlite, bcmath
 
-      - name: Install Agent Engine Dependencies
+      - name: Install Agent Engine Dependencies & Start Core
         run: |
           pip install -r agent_engine/requirements.txt
-          python -m uvicorn agent_engine.main:app --host 127.0.0.1 --port 8080 &
-          sleep 3
+          nohup python -m uvicorn agent_engine.main:app --host 127.0.0.1 --port 8080 > uvicorn.log 2>&1 &
+          echo "Waiting for Agent Execution Engine on port 8080..."
+          for i in {1..20}; do
+            if curl -s http://127.0.0.1:8080/health > /dev/null; then
+              echo "Agent Execution Engine is healthy!"
+              break
+            fi
+            sleep 1
+          done
 
       - name: Install Orchestrator Dependencies
         run: |
@@ -41,12 +53,33 @@ jobs:
           php artisan migrate --force
 
       - name: Run AuditCortex CLI Scan & Export SARIF 2.1.0
+        id: scanner
+        continue-on-error: true
         run: |
           php artisan auditcortex:scan . --format=sarif --output=auditcortex-results.sarif --fail-under=80 --max-critical=0
 
+      - name: Check SARIF Report Output
+        id: check_sarif
+        run: |
+          if [ -f auditcortex-results.sarif ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✓ Found SARIF report: $(wc -c < auditcortex-results.sarif) bytes"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️ No SARIF report found at auditcortex-results.sarif"
+          fi
+
       - name: Upload SARIF to GitHub Code Scanning Alerts
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: steps.check_sarif.outputs.exists == 'true'
+        continue-on-error: true
         with:
           sarif_file: auditcortex-results.sarif
           category: auditcortex-agentic-scanner
+
+      - name: Enforce Security Policy Gate
+        if: steps.scanner.outcome == 'failure'
+        run: |
+          echo "::error::AuditCortex Security Policy Gate Failed: Repository contains vulnerabilities exceeding enterprise thresholds."
+          exit 1
+
