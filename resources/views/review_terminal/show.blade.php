@@ -770,6 +770,82 @@
                 </div>
             </div>
         </div>
+
+        <!-- Interactive Policy Configuration & Chat Alerts -->
+        <div style="background: rgba(12, 17, 30, 0.75); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                <div style="font-weight: 700; font-size: 0.9375rem; color: white;">
+                    ⚙️ Configure Repository Security Policy &amp; Incident Webhooks
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                    <a :href="'/repositories/' + (pullRequest.repository_id || 1) + '/policy/download'" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">
+                        📥 Download .auditcortex.yml
+                    </a>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                <div>
+                    <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">
+                        Min Health Score Gate (0 - 100)
+                    </label>
+                    <input 
+                        v-model.number="policyForm.min_security_score" 
+                        type="number" 
+                        min="0" 
+                        max="100" 
+                        style="width: 100%; background: var(--bg-tertiary); color: white; border: 1px solid var(--border-subtle); padding: 0.45rem 0.75rem; border-radius: 6px; font-size: 0.8125rem;"
+                    >
+                </div>
+
+                <div>
+                    <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">
+                        Max Criticals Permitted
+                    </label>
+                    <input 
+                        v-model.number="policyForm.max_critical_allowed" 
+                        type="number" 
+                        min="0" 
+                        max="10" 
+                        style="width: 100%; background: var(--bg-tertiary); color: white; border: 1px solid var(--border-subtle); padding: 0.45rem 0.75rem; border-radius: 6px; font-size: 0.8125rem;"
+                    >
+                </div>
+
+                <div>
+                    <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">
+                        Slack / Teams Webhook URL
+                    </label>
+                    <input 
+                        v-model="policyForm.slack_webhook_url" 
+                        type="text" 
+                        placeholder="https://hooks.slack.com/services/..."
+                        style="width: 100%; background: var(--bg-tertiary); color: white; border: 1px solid var(--border-subtle); padding: 0.45rem 0.75rem; border-radius: 6px; font-size: 0.8125rem;"
+                    >
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <button @click="savePolicy" :disabled="isSavingPolicy" class="btn btn-primary" style="font-size: 0.75rem; padding: 0.4rem 0.85rem;">
+                    💾 @{{ isSavingPolicy ? 'Saving Policy...' : 'Save Policy Changes' }}
+                </button>
+                <button @click="sendTestAlert('slack')" :disabled="isSendingAlert" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.4rem 0.85rem;">
+                    🔔 Test Slack Alert
+                </button>
+                <button @click="sendTestAlert('teams')" :disabled="isSendingAlert" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.4rem 0.85rem;">
+                    💬 Test MS Teams Alert
+                </button>
+            </div>
+
+            <!-- Test Alert Output Banner -->
+            <div v-if="alertResult" style="margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 6px; background: rgba(16, 185, 129, 0.08); border-left: 3px solid var(--emerald-safe); font-size: 0.8125rem;">
+                <div style="font-weight: 700; color: var(--emerald-safe); margin-bottom: 0.25rem;">
+                    ✓ @{{ alertResult.message }}
+                </div>
+                <div style="font-size: 0.75rem; color: #cbd5e1; font-family: var(--font-mono);">
+                    Status: @{{ alertResult.result?.status }} &bull; Title: @{{ alertResult.result?.payload?.attachments?.[0]?.title || alertResult.result?.payload?.summary }}
+                </div>
+            </div>
+        </div>
     </div>
 
 </div>
@@ -791,6 +867,15 @@ createApp({
         const openCommentaryLines = ref({});
         const discussionInputs = ref({});
         const isSendingDiscussion = ref({});
+        const isSavingPolicy = ref(false);
+        const isSendingAlert = ref(false);
+        const alertResult = ref(null);
+        const policyForm = ref({
+            min_security_score: 80,
+            max_critical_allowed: 0,
+            fail_on: ['CRITICAL', 'HIGH'],
+            slack_webhook_url: ''
+        });
 
         const pullRequest = ref(@json($pullRequest));
         const sessionData = ref(@json($activeSession ?? ['security_score' => 100, 'critical_count' => 0, 'high_count' => 0]));
@@ -1133,10 +1218,52 @@ module.exports = { forwardWebhook, fetchUserTransactions, archiveTenantData };
             }
         }
 
+        async function loadPolicy() {
+            try {
+                const res = await axios.get(`/api/repositories/${pullRequest.value.repository_id || 1}/policy`);
+                if (res.data?.policy) {
+                    policyForm.value.min_security_score = res.data.policy.min_security_score ?? 80;
+                    policyForm.value.max_critical_allowed = res.data.policy.max_critical_allowed ?? 0;
+                    policyForm.value.slack_webhook_url = res.data.policy.slack_webhook_url ?? '';
+                }
+            } catch (e) {
+                console.error("Policy fetch error", e);
+            }
+        }
+
+        async function savePolicy() {
+            isSavingPolicy.value = true;
+            try {
+                const res = await axios.post(`/api/repositories/${pullRequest.value.repository_id || 1}/policy`, policyForm.value);
+                alert(res.data?.message || 'Organization policy saved successfully!');
+            } catch (e) {
+                alert('Failed to save policy: ' + (e.response?.data?.message || e.message));
+            } finally {
+                isSavingPolicy.value = false;
+            }
+        }
+
+        async function sendTestAlert(channel = 'slack') {
+            isSendingAlert.value = true;
+            alertResult.value = null;
+            try {
+                const res = await axios.post(`/api/pull-requests/${prId}/test-notification`, {
+                    channel: channel,
+                    webhook_url: policyForm.value.slack_webhook_url
+                });
+                alertResult.value = res.data;
+            } catch (e) {
+                alert('Alert error: ' + (e.response?.data?.error || e.message));
+            } finally {
+                isSendingAlert.value = false;
+            }
+        }
+
         onMounted(() => {
             if (uniqueFiles.value.length > 0) {
                 selectedFilePath.value = uniqueFiles.value[0];
             }
+            loadPolicy();
         });
 
         return {
@@ -1163,6 +1290,10 @@ module.exports = { forwardWebhook, fetchUserTransactions, archiveTenantData };
             policyData,
             discussionInputs,
             isSendingDiscussion,
+            policyForm,
+            isSavingPolicy,
+            isSendingAlert,
+            alertResult,
             getFindingsForFile,
             isVulnerableLine,
             isFixedLine,
@@ -1177,7 +1308,9 @@ module.exports = { forwardWebhook, fetchUserTransactions, archiveTenantData };
             createAutoFixBranch,
             postDiscussionMessage,
             applyPatchForFinding,
-            publishInlineCommentForFinding
+            publishInlineCommentForFinding,
+            savePolicy,
+            sendTestAlert
         };
     }
 }).mount('#reviewTerminalApp');

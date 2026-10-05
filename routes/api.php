@@ -25,3 +25,9 @@ Route::get('/review-sessions/{id}/download-sarif', [ReviewTerminalController::cl
 Route::post('/pull-requests/{id}/check-runs/sync', [ReviewTerminalController::class, 'syncCheckRun']);
 Route::post('/pull-requests/{id}/create-autofix-branch', [ReviewTerminalController::class, 'createAutoFixBranch']);
 Route::post('/findings/{id}/discuss', [ReviewTerminalController::class, 'postInlineDiscussion']);
+
+// Organization Policy & Alerting API
+Route::get('/repositories/{id}/policy', [\App\Http\Controllers\PolicyController::class, 'getPolicy']);
+Route::post('/repositories/{id}/policy', [\App\Http\Controllers\PolicyController::class, 'updatePolicy']);
+Route::post('/pull-requests/{id}/test-notification', [\App\Http\Controllers\PolicyController::class, 'testNotification']);
+
