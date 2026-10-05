@@ -1,0 +1,52 @@
+name: AuditCortex Autonomous Security Audit
+
+on:
+  pull_request:
+    branches: [ main, master, develop ]
+  push:
+    branches: [ main ]
+
+jobs:
+  security-audit:
+    name: Multi-Pass AST Vulnerability & Taint Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python Runtime
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up PHP Runtime
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo, pdo_sqlite, bcmath
+
+      - name: Install Agent Engine Dependencies
+        run: |
+          pip install -r agent_engine/requirements.txt
+          python -m uvicorn agent_engine.main:app --host 127.0.0.1 --port 8080 &
+          sleep 3
+
+      - name: Install Orchestrator Dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --optimize-autoloader
+          cp .env.example .env
+          touch database/database.sqlite
+          php artisan key:generate
+          php artisan migrate --force
+
+      - name: Run AuditCortex CLI Scan & Export SARIF 2.1.0
+        run: |
+          php artisan auditcortex:scan . --format=sarif --output=auditcortex-results.sarif --fail-under=80 --max-critical=0
+
+      - name: Upload SARIF to GitHub Code Scanning Alerts
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: auditcortex-results.sarif
+          category: auditcortex-agentic-scanner

@@ -141,19 +141,62 @@ curl -X POST http://127.0.0.1:8000/api/webhooks/simulate \
 
 ---
 
-## 📸 Review Terminal Features
+## 🚀 Enterprise Feature Matrix
 
-- **Side-by-Side Git Diff Viewer**: Left pane highlights dangerous sinks and tainted source paths; right pane displays Tree-sitter AST-verified synthesized patches.
-- **Inline Severity Badges**: Pulsating crimson/amber tags anchored directly on the vulnerable lines of code.
-- **Agent Reasoning Trajectory**: Expandable audit logs showing the exact step-by-step thoughts, actions, observations, and latencies of all 3 agents.
-- **One-Click Actions**:
-  - Apply AST Remediation Patch locally
-  - Publish Inline Markdown Review Comments to GitHub PR lines
-  - Download Combined `.diff` / `.patch` file
-  - Re-Run Autonomous Multi-Pass Audit on demand
+| Enterprise Capability | Implementation | Status |
+| :--- | :--- | :--- |
+| **GitHub Checks API & Merge Protection Gate** | Enforces health score $\ge 80$ & $0$ Criticals before merging. | ✅ Production Ready |
+| **1-Click Auto-Fix Branch & Companion PR** | Generates dedicated remediation branches (`auditcortex/fix-pr-...`). | ✅ Production Ready |
+| **OASIS Standard SARIF 2.1.0 Export** | Compliant SARIF JSON for GitHub Code Scanning, GitLab SAST, SonarQube. | ✅ Production Ready |
+| **Interactive Critic AI Chat Thread** | Real-time in-diff discussion with Security Critic AI to debate findings. | ✅ Production Ready |
+| **Adversarial Debate Protocol (Pass 3.5)** | 2-turn Red-Team Critic bypass challenge vs. Blue-Team patch hardening. | ✅ Production Ready |
+| **Dynamic PoC Verification (Pass 3.6)** | Ephemeral test exploit assertions proving neutralization on patched code. | ✅ Production Ready |
+| **Cross-File Call Graph & Taint Engine (Pass 0)** | Interprocedural symbol tree & multi-file taint propagation paths. | ✅ Production Ready |
+| **Organization Policy Engine (.auditcortex.yml)** | Enterprise rules, fail thresholds, path exclusions & YAML exporter. | ✅ Production Ready |
+| **Slack & MS Teams Incident Alerting** | Webhook notifications for blocked merges with 1-click review buttons. | ✅ Production Ready |
+| **GitLab MR Webhook Integration** | Full support for GitLab Merge Request events alongside GitHub. | ✅ Production Ready |
+| **CLI Repository Scanner** | Standalone scanner for local codebases or CI/CD pipelines. | ✅ Production Ready |
+| **Docker Compose Self-Hosting Stack** | 1-command deployment with Ollama, Redis, FastAPI, and Laravel. | ✅ Production Ready |
+
+---
+
+## 💻 CLI Scanner Usage (CI/CD Pipeline Ready)
+
+AuditCortex includes an autonomous command-line scanner:
+
+```bash
+# Scan current repository and enforce 80/100 pass threshold
+php artisan auditcortex:scan .
+
+# Scan specific directory and output OASIS SARIF 2.1.0 for GitHub Code Scanning
+php artisan auditcortex:scan ./src --format=sarif --output=results.sarif --fail-under=80
+
+# Scan single file and generate unified diff patch
+php artisan auditcortex:scan app/api/endpoints.py --output=security_fixes.patch
+```
+
+---
+
+## 🐳 Self-Hosted Deployment (Docker Compose)
+
+Deploy the entire AuditCortex stack locally with **zero external cloud dependencies**:
+
+```bash
+# Start all containers: Laravel Web, Background Queue Worker, FastAPI Agent Core, Redis, and Ollama
+docker compose up -d
+
+# Pull the local Qwen2.5-Coder model into Ollama
+docker exec -it auditcortex-ollama ollama pull qwen2.5-coder:7b
+```
+
+Access services:
+- **Review Terminal UI**: `http://localhost:8000`
+- **FastAPI Agent Engine**: `http://localhost:8080/api/health`
+- **Ollama Runner**: `http://localhost:11434`
 
 ---
 
 ## 🛡️ License
 
 MIT License. Built with ❤️ for autonomous application security and engineering velocity.
+

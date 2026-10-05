@@ -1,0 +1,113 @@
+# ==============================================================================
+# AuditCortex Enterprise Self-Hosted Stack
+# Autonomous Agentic Code Reviewer & PR Security Auditor
+# ==============================================================================
+version: '3.8'
+
+services:
+  # 1. Python FastAPI Agent Core (AST Linter + Security Critic + Fix Synthesizer)
+  agent-core:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    container_name: auditcortex-agent-core
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - OLLAMA_HOST=http://ollama:11434
+      - VLLM_HOST=http://vllm:8001/v1
+      - ZERO_CODE_LEAK_MODE=true
+    depends_on:
+      - redis
+    networks:
+      - auditcortex-network
+
+  # 2. Laravel 12 Webhook Orchestrator & Review Terminal UI
+  web-orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: auditcortex-web
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=AuditCortex
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - APP_URL=http://localhost:8000
+      - AGENT_ENGINE_URL=http://agent-core:8080
+      - QUEUE_CONNECTION=redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DB_CONNECTION=sqlite
+      - DB_DATABASE=/var/www/html/database/database.sqlite
+    volumes:
+      - auditcortex-data:/var/www/html/database
+      - auditcortex-storage:/var/www/html/storage
+    depends_on:
+      - agent-core
+      - redis
+    networks:
+      - auditcortex-network
+
+  # 3. Background Queue Worker for Asynchronous PR Analysis
+  queue-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: auditcortex-worker
+    restart: unless-stopped
+    command: ["php", "artisan", "queue:work", "--tries=3", "--timeout=180"]
+    environment:
+      - APP_ENV=production
+      - AGENT_ENGINE_URL=http://agent-core:8080
+      - QUEUE_CONNECTION=redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DB_CONNECTION=sqlite
+      - DB_DATABASE=/var/www/html/database/database.sqlite
+    volumes:
+      - auditcortex-data:/var/www/html/database
+      - auditcortex-storage:/var/www/html/storage
+    depends_on:
+      - agent-core
+      - redis
+    networks:
+      - auditcortex-network
+
+  # 4. Redis Queue & In-Memory Coordination Cache
+  redis:
+    image: redis:7-alpine
+    container_name: auditcortex-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - auditcortex-redis-data:/data
+    networks:
+      - auditcortex-network
+
+  # 5. Localhost Zero-Leak Ollama LLM Runner (Qwen2.5-Coder)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: auditcortex-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - auditcortex-ollama-models:/root/.ollama
+    networks:
+      - auditcortex-network
+
+networks:
+  auditcortex-network:
+    driver: bridge
+
+volumes:
+  auditcortex-data:
+  auditcortex-storage:
+  auditcortex-redis-data:
+  auditcortex-ollama-models:

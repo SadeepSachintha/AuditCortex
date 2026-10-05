@@ -49,16 +49,31 @@ class WebhookController extends Controller
         return response()->json(['message' => "Event '{$event}' ignored."]);
     }
 
-    public function handleGitLab(Request $request): JsonResponse
+    public function handleGitLab(Request $request, \App\Services\GitLabWebhookService $gitLabService): JsonResponse
     {
         $token = $request->header('X-Gitlab-Token');
         $event = $request->header('X-Gitlab-Event', 'Merge Request Hook');
+        $payload = $request->all();
 
-        // In GitLab, merge request object has similar structure
-        return response()->json([
-            'message' => 'AuditCortex GitLab webhook received.',
-            'event' => $event,
-        ]);
+        $projectPath = $payload['project']['path_with_namespace'] ?? null;
+        $repo = $projectPath ? Repository::where('repo_full_name', $projectPath)->first() : null;
+        $secret = $repo?->webhook_secret ?: config('services.gitlab.webhook_secret');
+
+        if (!$gitLabService->verifyGitLabToken($token, $secret)) {
+            Log::warning("GitLab webhook token verification failed for {$projectPath}");
+            return response()->json(['error' => 'Invalid GitLab secret token'], 401);
+        }
+
+        if ($event === 'Merge Request Hook' || ($payload['object_kind'] ?? '') === 'merge_request') {
+            $session = $gitLabService->handleMergeRequestEvent($payload);
+            return response()->json([
+                'message' => 'GitLab Merge Request event processed successfully.',
+                'review_session_id' => $session?->id,
+                'session_uuid' => $session?->session_uuid,
+            ]);
+        }
+
+        return response()->json(['message' => "GitLab event '{$event}' acknowledged."]);
     }
 
     public function simulate(Request $request): JsonResponse
