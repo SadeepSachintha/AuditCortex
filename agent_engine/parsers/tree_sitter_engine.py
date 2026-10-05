@@ -446,45 +446,44 @@ class TreeSitterEngine:
                 line = node.start_point[0] + 1
 
                 # 1. SQL Injection: DB::raw("... $id"), $pdo->query("... " . $id)
-                if ("DB::raw" in call_text or "DB::select" in call_text or "->query(" in call_text) and (
-                    "$" in call_text or "." in call_text
-                ):
-                    findings.append({
-                        "file_path": filepath,
-                        "line_start": line,
-                        "line_end": node.end_point[0] + 1,
-                        "severity": "CRITICAL",
-                        "cwe_id": "CWE-89",
-                        "vulnerability_type": "SQL_INJECTION",
-                        "title": "SQL Injection via Raw SQL Query Interpolation",
-                        "description": f"Database execution sink `{call_text[:50]}...` uses unescaped string concatenation or variable interpolation in raw query.",
-                        "dangerous_sink": call_text,
-                        "taint_source": "Dynamic variable interpolation",
-                        "ast_node_type": node.type,
-                        "confidence_score": 0.96
-                    })
-
-                # 2. Command Injection: shell_exec, system, exec, passthru
-                for sink in ["shell_exec", "system", "exec", "passthru"]:
-                    if sink in call_text and "$" in call_text:
+                if re.search(r'\b(DB::raw|DB::select|->query|->selectRaw)\s*\(', call_text):
+                    if ("$" in call_text or "." in call_text) and not (", [" in call_text or ", array(" in call_text or "?" in call_text):
                         findings.append({
                             "file_path": filepath,
                             "line_start": line,
                             "line_end": node.end_point[0] + 1,
                             "severity": "CRITICAL",
-                            "cwe_id": "CWE-78",
-                            "vulnerability_type": "COMMAND_INJECTION",
-                            "title": "OS Command Injection in PHP Script",
-                            "description": f"Dangerous execution sink `{sink}` called with user parameters without `escapeshellcmd` or `escapeshellarg`.",
+                            "cwe_id": "CWE-89",
+                            "vulnerability_type": "SQL_INJECTION",
+                            "title": "SQL Injection via Raw SQL Query Interpolation",
+                            "description": f"Database execution sink `{call_text[:50]}...` uses unescaped string concatenation or variable interpolation in raw query.",
                             "dangerous_sink": call_text,
-                            "taint_source": "User input parameter",
+                            "taint_source": "Dynamic variable interpolation",
                             "ast_node_type": node.type,
-                            "confidence_score": 0.94
+                            "confidence_score": 0.96
                         })
-                        break
+
+                # 2. Command Injection: shell_exec, system, exec, passthru, popen, proc_open
+                cmd_match = re.search(r'\b(shell_exec|system|exec|passthru|popen|proc_open)\s*\(', call_text)
+                if cmd_match and "$" in call_text and "escapeshell" not in call_text:
+                    sink = cmd_match.group(1)
+                    findings.append({
+                        "file_path": filepath,
+                        "line_start": line,
+                        "line_end": node.end_point[0] + 1,
+                        "severity": "CRITICAL",
+                        "cwe_id": "CWE-78",
+                        "vulnerability_type": "COMMAND_INJECTION",
+                        "title": "OS Command Injection in PHP Script",
+                        "description": f"Dangerous execution sink `{sink}` called with user parameters without `escapeshellcmd` or `escapeshellarg`.",
+                        "dangerous_sink": call_text,
+                        "taint_source": "User input parameter",
+                        "ast_node_type": node.type,
+                        "confidence_score": 0.94
+                    })
 
                 # 3. Insecure Deserialization: unserialize
-                if "unserialize" in call_text:
+                if re.search(r'\bunserialize\s*\(', call_text) and "json_decode" not in call_text:
                     findings.append({
                         "file_path": filepath,
                         "line_start": line,

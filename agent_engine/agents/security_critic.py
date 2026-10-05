@@ -129,6 +129,14 @@ class SecurityCriticAgent(BaseAgent):
                 }
 
         elif vtype == "COMMAND_INJECTION":
+            import re
+            if not re.search(r'\b(shell_exec|system|exec|passthru|popen|proc_open|subprocess|os\.system|child_process)\b', sink):
+                return {
+                    "verdict": "REJECTED_FALSE_POSITIVE",
+                    "confidence_score": 0.05,
+                    "critic_reasoning": "Target expression does not invoke a system shell execution sink. Benign method call or variable name.",
+                    "privilege_boundary_impact": "None. No system boundary reached."
+                }
             if "shlex.quote" in context_str or "escapeshellarg" in context_str:
                 return {
                     "verdict": "DOWNGRADED",

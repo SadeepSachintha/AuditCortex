@@ -40,7 +40,7 @@ class ScanRepositoryCommand extends Command
      * Paths to ignore during scanning.
      */
     protected array $ignoreDirectories = [
-        'vendor', 'node_modules', '.git', 'storage', 'dist', 'build', '.idea', '.vscode', '.gemini'
+        'vendor', 'node_modules', '.git', 'storage', 'dist', 'build', '.idea', '.vscode', '.gemini', 'tests', 'sample_prs', 'fixtures'
     ];
 
     public function handle(AgentEngineClient $engineClient): int
@@ -221,7 +221,12 @@ class ScanRepositoryCommand extends Command
                     $fullPath = $item->getPathname();
                     $skip = false;
                     foreach ($this->ignoreDirectories as $ignored) {
-                        if (str_contains($fullPath, DIRECTORY_SEPARATOR . $ignored . DIRECTORY_SEPARATOR)) {
+                        if (
+                            str_contains($fullPath, DIRECTORY_SEPARATOR . $ignored . DIRECTORY_SEPARATOR) ||
+                            str_contains($fullPath, '/' . $ignored . '/') ||
+                            str_ends_with($fullPath, DIRECTORY_SEPARATOR . $ignored) ||
+                            str_ends_with($fullPath, '/' . $ignored)
+                        ) {
                             $skip = true;
                             break;
                         }
