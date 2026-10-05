@@ -3,6 +3,13 @@
 
 > A high-performance developer tools SaaS that hooks into GitHub/GitLab webhooks to perform multi-pass static analysis, AST security vulnerability scanning, and semantic dependency validation using autonomous agent loops.
 
+[![Status](https://img.shields.io/badge/Status-Production%20Ready-emerald.svg)](#)
+[![Zero-Leak](https://img.shields.io/badge/Privacy-100%25%20Localhost%20Zero--Leak-cyan.svg)](#)
+[![SARIF](https://img.shields.io/badge/Standard-OASIS%20SARIF%202.1.0-purple.svg)](#)
+[![Handover](https://img.shields.io/badge/Documentation-Product%20Handover%20Plan-blue.svg)](PRODUCT_HANDOVER.md)
+
+> 📘 **Engineering Handover**: For architecture blueprints, API specifications, and operational maintenance guides, see the [Product Handover Plan](PRODUCT_HANDOVER.md).
+
 ---
 
 ## ⚡ The Problem
