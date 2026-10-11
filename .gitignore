@@ -25,3 +25,7 @@ Thumbs.db
 __pycache__/
 *.pyc
 *.pyo
+composer.phar
+uvicorn.log
+*.sarif
+*.sqlite*
